@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inspektor-internal
+  namespace: dev-internal
+spec:
+  selector:
+    matchLabels:
+      app: inspektor-internal
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: inspektor-internal
+    spec:
+      containers:
+        - name: inspektor-internal
+          image: iwillenshofer/inspektor:v1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi

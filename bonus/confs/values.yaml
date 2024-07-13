@@ -1,0 +1,33 @@
+global:
+  hosts:
+    https: false
+    port: 8888
+  ingress:
+    enabled: true
+    tls:
+      enabled: false
+    provider: traefik
+    class: traefik
+  registry:
+    enabled: false
+  appConfig:
+    defaultProjectsFeatures:
+      builds: false
+      containerRegistry: false
+certmanager-issuer:
+  email: iwillens@student.42sp.org.br
+postgresql:
+  image:
+    tag: 13.6.0
+nginx-ingress:
+  enabled: false
+prometheus:
+  install: false
+gitlab-runner:
+  install: false
+  gitlabUrl: http://gitlab-webservice-default.gitlab.svc:8181
+  runners:
+    privileged: true
+    config: |
+      [[runners]]
+        clone_url = "http://gitlab-webservice-default.gitlab.svc:8181"

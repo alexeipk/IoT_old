@@ -1,0 +1,30 @@
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: inspektor-internal-middleware
+  namespace: dev-internal
+spec:
+  stripPrefix:
+    prefixes:
+      - /inspektor-internal
+
+---
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: inspektor-internal-ingress
+  namespace: dev-internal
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: dev-internal-inspektor-internal-middleware@kubernetescrd
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /inspektor-internal
+            pathType: Prefix
+            backend:
+              service:
+                name: inspektor-internal
+                port:
+                  number: 80

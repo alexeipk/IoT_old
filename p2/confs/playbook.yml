@@ -1,0 +1,119 @@
+---
+
+- name: Install general dependencies
+  hosts: k3s
+  become: yes
+  gather_facts: yes
+  tasks:
+    - name: Ping host
+      ansible.builtin.ping:
+    - name: Update cache and install dependencies
+      ansible.builtin.apt:
+        update_cache: yes
+        name:
+          - curl
+          - net-tools
+          - apt-transport-https
+          - ca-certificates
+          - gpg
+          - python3
+          - python3-yaml
+          - python3-pip
+          - python3-kubernetes
+        state: present
+    - name: Add net-tools path (/sbin) to system-wide $PATH.
+      ansible.builtin.copy:
+        dest: /etc/profile.d/custom-path.sh
+        content: 'PATH=$PATH:/sbin/'
+        mode: "0644"
+
+- name: Install kubectl
+  hosts: k3s
+  become: yes
+  tasks:
+    - name: Add Kubernetes APT repository signing key
+      ansible.builtin.apt_key:
+        url: https://pkgs.k8s.io/core:/stable:/v1.28/deb/Release.key
+        keyring: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+    - name: Add Kubernetes APT repository
+      ansible.builtin.apt_repository:
+        repo: deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.28/deb/ /
+        state: present
+    - name: Install kubectl
+      ansible.builtin.apt:
+        update_cache: yes
+        name:
+          - kubectl
+        state: present
+
+
+- name: Install k3s bootstrap server
+  hosts: k3s
+  become: yes
+  vars:
+    server_ip: "{{ hostvars[k3s_server]['ansible_eth1']['ipv4'].address }}"
+  tasks:
+    - name: Ping host
+      ansible.builtin.ping:
+    - name: Install k3s server
+      environment:
+        K3S_NODE_NAME: "{{ inventory_hostname }}"
+        K3S_KUBECONFIG_MODE: "644"
+      shell: >
+        curl -sfL https://get.k3s.io | sh -s - server --cluster-init
+        --flannel-iface eth1
+        --bind-address {{ server_ip }}
+    - name: Extract kubeconfig
+      slurp:
+        path: /etc/rancher/k3s/k3s.yaml
+      register: kubeconfig
+    - name: Set K3S_TOKEN and kubeconfig as facts
+      set_fact:
+        kubeconfig: "{{ kubeconfig['content'] | b64decode | from_yaml }}"
+
+
+- name: Fetch kubeconfig
+  hosts: k3s
+  vars:
+    server_ip: "{{ hostvars[k3s_server]['ansible_eth1']['ipv4'].address }}"
+    kubeconfig: "{{ hostvars[k3s_server]['kubeconfig'] }}"
+  tasks:
+    - name: Ping hosts
+      ansible.builtin.ping:
+    - name: Create .kube directory
+      ansible.builtin.file:
+        path: $HOME/.kube
+        state: directory
+        mode: '0755'
+    - name: Copy kubeconfig to node
+      ansible.builtin.copy:
+        content: "{{ kubeconfig | to_nice_yaml }}"
+        dest: $HOME/.kube/config
+    - name: Fetch kubeconfig to host
+      become: yes
+      ansible.builtin.fetch:
+        src: /etc/rancher/k3s/k3s.yaml
+        dest: ~/.kube/config
+        flat: yes
+      when: ansible_hostname == k3s_server
+
+
+- name: Deploy Applications
+  hosts: k3s
+  become: yes
+  vars:
+    kubeconfig: "{{ hostvars[k3s_server]['kubeconfig'] }}"
+  tasks:
+    - name: Deploys each app's deployment/service/ingress
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        namespace: default
+        state: present
+        src: '{{ item.src }}'
+      with_items:
+          - name: appone
+            src: "/vagrant/confs/appone.yaml"
+          - name: apptwo
+            src: "/vagrant/confs/apptwo.yaml"
+          - name: appthree
+            src: "/vagrant/confs/appthree.yaml"

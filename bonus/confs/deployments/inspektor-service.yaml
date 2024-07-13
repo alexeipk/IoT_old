@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: inspektor-internal
+  namespace: dev-internal
+spec:
+  selector:
+    app: inspektor-internal
+  type: ClusterIP
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
